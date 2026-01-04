@@ -1,4 +1,5 @@
 #include <oneapi/tbb/info.h>
+#include <tbb/tbb.h>
 #include "oneapi/tbb/parallel_invoke.h"
 #include <oneapi/tbb/parallel_reduce.h>
 #include <oneapi/tbb/parallel_for.h>
@@ -125,7 +126,6 @@ void parallel_solution(std::vector<int> &values) {
         std::cout << cumulative_histogram[i] << " ";
     }
     std::cout << std::endl << std::endl;
-    std::cout << "=============================================================" << std::endl << std::endl;
 }
 
 void sequential_solution(std::vector<int> values) {
@@ -202,12 +202,19 @@ void sequential_solution(std::vector<int> values) {
         std::cout << cumulative_histogram[i] << " ";
     }
     std::cout << std::endl << std::endl;
-    std::cout << "=============================================================" << std::endl << std::endl;
 }
 
 int main()
 {
     std::vector<int> values = {0, 7, 8, 10, 24, 48, 73, 120}; // Assuming non-negative values
+
+    oneapi::tbb::tick_count t0 = oneapi::tbb::tick_count::now();
     parallel_solution(values);
+    std::cout << "\nTime: " << (oneapi::tbb::tick_count::now()-t0).seconds() << "seconds" << std::endl << std::endl;
+    std::cout << "=============================================================" << std::endl << std::endl;
+
+    oneapi::tbb::tick_count t1 = oneapi::tbb::tick_count::now();
     sequential_solution(values);
+    std::cout << "\nTime: " << (oneapi::tbb::tick_count::now()-t1).seconds() << "seconds" << std::endl << std::endl;
+    std::cout << "=============================================================" << std::endl << std::endl;
 }
