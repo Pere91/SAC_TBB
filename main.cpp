@@ -10,18 +10,19 @@
 
 // https://docs.oneapi.io/versions/latest/onetbb/tbb_userguide/Migration_Guide/Task_Scheduler_Init.html
 
-int main()
-{
-    std::vector<int> values = {0, 7, 8, 10, 24, 48, 73, 120};
+const int NUM_BINS = 3;
+
+void parallel_solution(std::vector<int> &values) {
     const int N = values.size();
-    const int NUM_BINS = 3;
+
+    std::cout << std::endl << "=== PARALLEL SOLUTION =======================================" << std::endl << std::endl;
 
     // Sort vector just in case
     std::sort(values.begin(), values.end());
 
-    // Get the biggest element
+    // Get the biggest element and compute the bin size from it
     const int MAX_VALUE = values[N - 1];
-    const int BIN_SPAN = MAX_VALUE / NUM_BINS;
+    const int BIN_SPAN = std::ceil(MAX_VALUE / NUM_BINS);
 
     // Distribute the bins evenly
     auto bin_range_values = std::vector<int>(NUM_BINS);
@@ -38,7 +39,7 @@ int main()
         {
             for (int i = r.begin(); i < r.end(); i++)
             {
-                int val = values[i] > 0 ? values[i] - 1 : values[i];
+                int val = values[i] > 0 ? values[i] - 1 : values[i]; // 0 belongs in the first bin
                 int idx = val / BIN_SPAN;
                 std::array<int, NUM_BINS> arr{};
                 arr[idx]++;
@@ -47,16 +48,22 @@ int main()
         }
     );
 
-    // for (int i = 0; i < mapped_values.size(); i++)
-    // {
-    //     std::cout << "{ ";
-    //     for (int x : mapped_values[i])
-    //     {
-    //         std::cout << x << " ";
-    //     }
 
-    //     std::cout << "} ";
-    // }
+    std::cout << "STEP 1: MAP" << std::endl;
+    for (int i = 0; i < mapped_values.size(); i++)
+    {
+        std::cout << "{ ";
+        for (int x : mapped_values[i])
+        {
+            std::cout << x << " ";
+        }
+
+        if (i == mapped_values.size() - 1) {
+            std::cout << "}" << std::endl;
+        } else {
+            std::cout << "}, ";
+        }
+    }
 
     // Sum up all values for each bin
     std::array<int, NUM_BINS> bins{};
@@ -86,11 +93,12 @@ int main()
     );
 
 
-    // for (int i : bins)
-    // {
-    //     std::cout << i << " ";
-    // }
-    // std::cout << std::endl;
+    std::cout << std::endl << "STEP 2: REDUCE" << std::endl;
+    for (int i : bins)
+    {
+        std::cout << i << " ";
+    }
+    std::cout << std::endl;
     
 
     // Scan through the bins to build the cumulative histogram
@@ -112,8 +120,94 @@ int main()
         }
     );
 
+    std::cout << std::endl << "STEP 3: SCAN" << std::endl;
     for (int i = 0; i < NUM_BINS; i++) {
         std::cout << cumulative_histogram[i] << " ";
     }
+    std::cout << std::endl << std::endl;
+    std::cout << "=============================================================" << std::endl << std::endl;
+}
+
+void sequential_solution(std::vector<int> values) {
+        const int N = values.size();
+
+    std::cout << std::endl << "=== SEQUENTIAL SOLUTION =====================================" << std::endl << std::endl;
+
+    // Sort vector just in case
+    std::sort(values.begin(), values.end());
+
+    // Get the biggest element and compute the bin size from it
+    const int MAX_VALUE = values[N - 1];
+    const int BIN_SPAN = std::ceil(MAX_VALUE / NUM_BINS);
+
+    // Distribute the bins evenly
+    auto bin_range_values = std::vector<int>(NUM_BINS);
+    for (int i = 0; i < NUM_BINS; i++)
+    {
+        bin_range_values[i] = MAX_VALUE - (NUM_BINS - 1 - i) * BIN_SPAN;
+    }
+
+    // Map each value to its corresponding bin
+    std::vector<std::array<int, NUM_BINS>> mapped_values(N);
+    for (int i = 0; i < N; i++) {
+                int val = values[i] > 0 ? values[i] - 1 : values[i];
+                int idx = val / BIN_SPAN;
+                std::array<int, NUM_BINS> arr{};
+                arr[idx]++;
+                mapped_values[i] = arr;
+    }
+
+    std::cout << "STEP 1: MAP" << std::endl;
+    for (int i = 0; i < mapped_values.size(); i++)
+    {
+        std::cout << "{ ";
+        for (int x : mapped_values[i])
+        {
+            std::cout << x << " ";
+        }
+
+        if (i == mapped_values.size() - 1) {
+            std::cout << "}" << std::endl;
+        } else {
+            std::cout << "}, ";
+        }
+    }
+
+    // Sum up all values for each bin
+    std::array<int, NUM_BINS> bins{};
+    for (int i = 0; i < mapped_values.size(); i++) {
+        for (int j = 0; j < NUM_BINS; j++) {
+            bins[j] += mapped_values[i][j];
+        }
+    }
+
+    std::cout << std::endl << "STEP 2: REDUCE" << std::endl;
+    for (int i : bins)
+    {
+        std::cout << i << " ";
+    }
     std::cout << std::endl;
+    
+
+    // Scan through the bins to build the cumulative histogram
+    std::array<int, NUM_BINS> cumulative_histogram{};
+    int total = 0;
+    for (int i = 0; i < NUM_BINS; i++) {
+        total += bins[i];
+        cumulative_histogram[i] = total;
+    }
+
+    std::cout << std::endl << "STEP 3: SCAN" << std::endl;
+    for (int i = 0; i < NUM_BINS; i++) {
+        std::cout << cumulative_histogram[i] << " ";
+    }
+    std::cout << std::endl << std::endl;
+    std::cout << "=============================================================" << std::endl << std::endl;
+}
+
+int main()
+{
+    std::vector<int> values = {0, 7, 8, 10, 24, 48, 73, 120}; // Assuming non-negative values
+    parallel_solution(values);
+    sequential_solution(values);
 }
