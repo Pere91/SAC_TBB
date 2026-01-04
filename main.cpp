@@ -10,8 +10,6 @@
 
 // https://docs.oneapi.io/versions/latest/onetbb/tbb_userguide/Migration_Guide/Task_Scheduler_Init.html
 
-using namespace oneapi;
-
 int main()
 {
     std::vector<int> values = {0, 7, 8, 10, 24, 48, 73, 120};
@@ -46,7 +44,8 @@ int main()
                 arr[idx]++;
                 mapped_values[i] = arr;
             }
-        });
+        }
+    );
 
     // for (int i = 0; i < mapped_values.size(); i++)
     // {
@@ -83,7 +82,8 @@ int main()
                 res[i] = left[i] + right[i];
             }
             return res;
-        });
+        }
+    );
 
 
     // for (int i : bins)
@@ -91,4 +91,29 @@ int main()
     //     std::cout << i << " ";
     // }
     // std::cout << std::endl;
+    
+
+    // Scan through the bins to build the cumulative histogram
+    std::array<int, NUM_BINS> cumulative_histogram{};
+    oneapi::tbb::parallel_scan(
+        oneapi::tbb::blocked_range<int>(0, NUM_BINS),
+        0,
+        [&](oneapi::tbb::blocked_range<int> r, int total, bool is_final_scan){
+            for (int i = r.begin(); i < r.end(); i++) {
+                total += bins[i];
+                if (is_final_scan) {
+                    cumulative_histogram[i] = total;
+                }
+            }
+            return total;
+        },
+        [&](int x, int y){
+            return x + y;
+        }
+    );
+
+    for (int i = 0; i < NUM_BINS; i++) {
+        std::cout << cumulative_histogram[i] << " ";
+    }
+    std::cout << std::endl;
 }
