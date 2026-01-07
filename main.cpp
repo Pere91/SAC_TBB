@@ -9,13 +9,13 @@
 #include <cmath>
 #include <vector>
 
-#define DEBUG 0 // Set to 1 to see the results of each step
+#define DEBUG 1 // Set to 1 to see the results of each step
 
 /**
  * @brief Number of bins
  *
  */
-const int NUM_BINS = 3;
+const int NUM_BINS = 4;
 
 /**
  * @brief Classifies the values of a numeric array into a cumulative histogram.
@@ -277,6 +277,9 @@ void sequential_solution(std::vector<int> values)
 int main()
 {
     std::vector<int> values = {0, 7, 8, 10, 24, 48, 73, 120}; // Assuming non-negative values
+
+    std::cout << std::endl
+              << "NUMBER OF BINS: " << NUM_BINS << std::endl;
 
     std::cout << std::endl
               << "=== PARALLEL SOLUTION =======================================" << std::endl
