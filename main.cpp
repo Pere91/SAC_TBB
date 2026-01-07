@@ -9,14 +9,37 @@
 #include <cmath>
 #include <vector>
 
-// https://docs.oneapi.io/versions/latest/onetbb/tbb_userguide/Migration_Guide/Task_Scheduler_Init.html
+#define DEBUG 0 // Set to 1 to see the results of each step
 
+/**
+ * @brief Number of bins
+ *
+ */
 const int NUM_BINS = 3;
 
-void parallel_solution(std::vector<int> &values) {
+/**
+ * @brief Classifies the values of a numeric array into a cumulative histogram.
+ * Parallelizes the different steps using oneapi tbb. These steps are:
+ *
+ *  1. Mapping: each value is mapped into an array of as many elements as bins,
+ *              where all elements are 0 except the one on the index that
+ *              represents this number's bin, with the number one. For example,
+ *              with 3 bins, an element falling on the second bin would be
+ *              mapped to [0, 1, 0].
+ *  2. Reduce:  the results of all other mappings are summed element to element,
+ *              resulting in a single array with representing a regular
+ *              histogram, that is, with the number of values that fall in each
+ *              bin.
+ *  3. Scan:    accumulates the sums of the different columns of the regular
+ *              histogram to build the cumulative histogram, resulting in a
+ *              single array where each number contains the number of values
+ *              that fall in that bin plus the sum of all previous bins.
+ *
+ * @param values array of integers with the values to be classified
+ */
+void parallel_solution(std::vector<int> &values)
+{
     const int N = values.size();
-
-    std::cout << std::endl << "=== PARALLEL SOLUTION =======================================" << std::endl << std::endl;
 
     // Sort vector just in case
     std::sort(values.begin(), values.end());
@@ -46,10 +69,10 @@ void parallel_solution(std::vector<int> &values) {
                 arr[idx]++;
                 mapped_values[i] = arr;
             }
-        }
-    );
+        });
 
-
+#if DEBUG
+    // Print the results
     std::cout << "STEP 1: MAP" << std::endl;
     for (int i = 0; i < mapped_values.size(); i++)
     {
@@ -59,14 +82,18 @@ void parallel_solution(std::vector<int> &values) {
             std::cout << x << " ";
         }
 
-        if (i == mapped_values.size() - 1) {
+        if (i == mapped_values.size() - 1)
+        {
             std::cout << "}" << std::endl;
-        } else {
+        }
+        else
+        {
             std::cout << "}, ";
         }
     }
+#endif
 
-    // Sum up all values for each bin
+    // Sum up all values for each bin (reduce)
     std::array<int, NUM_BINS> bins{};
     bins = oneapi::tbb::parallel_reduce(
         oneapi::tbb::blocked_range<int>(0, N),
@@ -90,48 +117,65 @@ void parallel_solution(std::vector<int> &values) {
                 res[i] = left[i] + right[i];
             }
             return res;
-        }
-    );
+        });
 
-
-    std::cout << std::endl << "STEP 2: REDUCE" << std::endl;
+#if DEBUG
+    // Print the results
+    std::cout << std::endl
+              << "STEP 2: REDUCE" << std::endl;
     for (int i : bins)
     {
         std::cout << i << " ";
     }
     std::cout << std::endl;
-    
+#endif
 
     // Scan through the bins to build the cumulative histogram
     std::array<int, NUM_BINS> cumulative_histogram{};
     oneapi::tbb::parallel_scan(
         oneapi::tbb::blocked_range<int>(0, NUM_BINS),
         0,
-        [&](oneapi::tbb::blocked_range<int> r, int total, bool is_final_scan){
-            for (int i = r.begin(); i < r.end(); i++) {
+        [&](oneapi::tbb::blocked_range<int> r, int total, bool is_final_scan)
+        {
+            for (int i = r.begin(); i < r.end(); i++)
+            {
                 total += bins[i];
-                if (is_final_scan) {
+                if (is_final_scan)
+                {
                     cumulative_histogram[i] = total;
                 }
             }
             return total;
         },
-        [&](int x, int y){
+        [&](int x, int y)
+        {
             return x + y;
-        }
-    );
+        });
 
-    std::cout << std::endl << "STEP 3: SCAN" << std::endl;
-    for (int i = 0; i < NUM_BINS; i++) {
+#if DEBUG
+    // Print the results
+    std::cout << std::endl
+              << "STEP 3: SCAN" << std::endl;
+#endif
+
+    for (int i = 0; i < NUM_BINS; i++)
+    {
         std::cout << cumulative_histogram[i] << " ";
     }
-    std::cout << std::endl << std::endl;
+    std::cout << std::endl
+              << std::endl;
 }
 
-void sequential_solution(std::vector<int> values) {
-        const int N = values.size();
-
-    std::cout << std::endl << "=== SEQUENTIAL SOLUTION =====================================" << std::endl << std::endl;
+/**
+ * @brief Sequential version of the same problem as in parallel_solution. The
+ * steps followed are the same.
+ *
+ * @see parallel_solution
+ * @param values array of integers with the values to be classified
+ */
+void sequential_solution(std::vector<int> values)
+{
+    const int N = values.size();
 
     // Sort vector just in case
     std::sort(values.begin(), values.end());
@@ -149,14 +193,17 @@ void sequential_solution(std::vector<int> values) {
 
     // Map each value to its corresponding bin
     std::vector<std::array<int, NUM_BINS>> mapped_values(N);
-    for (int i = 0; i < N; i++) {
-                int val = values[i] > 0 ? values[i] - 1 : values[i];
-                int idx = val / BIN_SPAN;
-                std::array<int, NUM_BINS> arr{};
-                arr[idx]++;
-                mapped_values[i] = arr;
+    for (int i = 0; i < N; i++)
+    {
+        int val = values[i] > 0 ? values[i] - 1 : values[i];
+        int idx = val / BIN_SPAN;
+        std::array<int, NUM_BINS> arr{};
+        arr[idx]++;
+        mapped_values[i] = arr;
     }
 
+#if DEBUG
+    // Print the results
     std::cout << "STEP 1: MAP" << std::endl;
     for (int i = 0; i < mapped_values.size(); i++)
     {
@@ -166,55 +213,88 @@ void sequential_solution(std::vector<int> values) {
             std::cout << x << " ";
         }
 
-        if (i == mapped_values.size() - 1) {
+        if (i == mapped_values.size() - 1)
+        {
             std::cout << "}" << std::endl;
-        } else {
+        }
+        else
+        {
             std::cout << "}, ";
         }
     }
+#endif
 
-    // Sum up all values for each bin
+    // Sum up all values for each bin (reduce)
     std::array<int, NUM_BINS> bins{};
-    for (int i = 0; i < mapped_values.size(); i++) {
-        for (int j = 0; j < NUM_BINS; j++) {
+    for (int i = 0; i < mapped_values.size(); i++)
+    {
+        for (int j = 0; j < NUM_BINS; j++)
+        {
             bins[j] += mapped_values[i][j];
         }
     }
 
-    std::cout << std::endl << "STEP 2: REDUCE" << std::endl;
+#if DEBUG
+    // Print the results
+    std::cout << std::endl
+              << "STEP 2: REDUCE" << std::endl;
     for (int i : bins)
     {
         std::cout << i << " ";
     }
     std::cout << std::endl;
-    
+#endif
 
     // Scan through the bins to build the cumulative histogram
     std::array<int, NUM_BINS> cumulative_histogram{};
     int total = 0;
-    for (int i = 0; i < NUM_BINS; i++) {
+    for (int i = 0; i < NUM_BINS; i++)
+    {
         total += bins[i];
         cumulative_histogram[i] = total;
     }
 
-    std::cout << std::endl << "STEP 3: SCAN" << std::endl;
-    for (int i = 0; i < NUM_BINS; i++) {
+#if DEBUG
+    // Print the results
+    std::cout << std::endl
+              << "STEP 3: SCAN" << std::endl;
+#endif
+
+    for (int i = 0; i < NUM_BINS; i++)
+    {
         std::cout << cumulative_histogram[i] << " ";
     }
-    std::cout << std::endl << std::endl;
+    std::cout << std::endl
+              << std::endl;
 }
 
+/**
+ * @brief Main function. Calls both parallel and sequential solutions for the
+ * same array of values and computes the time they take to finish.
+ *
+ * @return int exit status
+ */
 int main()
 {
     std::vector<int> values = {0, 7, 8, 10, 24, 48, 73, 120}; // Assuming non-negative values
 
+    std::cout << std::endl
+              << "=== PARALLEL SOLUTION =======================================" << std::endl
+              << std::endl;
     oneapi::tbb::tick_count t0 = oneapi::tbb::tick_count::now();
     parallel_solution(values);
-    std::cout << "\nTime: " << (oneapi::tbb::tick_count::now()-t0).seconds() << "seconds" << std::endl << std::endl;
-    std::cout << "=============================================================" << std::endl << std::endl;
+    std::cout << "\nTime: " << (oneapi::tbb::tick_count::now() - t0).seconds() << "seconds" << std::endl
+              << std::endl;
+    std::cout << "=============================================================" << std::endl
+              << std::endl;
 
+    std::cout << std::endl
+              << "=== SEQUENTIAL SOLUTION =====================================" << std::endl
+              << std::endl;
     oneapi::tbb::tick_count t1 = oneapi::tbb::tick_count::now();
     sequential_solution(values);
-    std::cout << "\nTime: " << (oneapi::tbb::tick_count::now()-t1).seconds() << "seconds" << std::endl << std::endl;
-    std::cout << "=============================================================" << std::endl << std::endl;
+    std::cout << "\nTime: " << (oneapi::tbb::tick_count::now() - t1).seconds() << "seconds" << std::endl
+              << std::endl;
+    std::cout << "=============================================================" << std::endl
+              << std::endl;
 }
