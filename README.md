@@ -1,5 +1,5 @@
 # SAC_TBB
-Acumulative histogram using Intel TBB library
+Cumulative histogram using Intel TBB library
 
 Parallel architectures assignment for Sistemes Actuals de Computació
 
