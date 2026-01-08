@@ -8,14 +8,38 @@
 #include <iostream>
 #include <cmath>
 #include <vector>
+#include <random>
 
-#define DEBUG 1 // Set to 1 to see the results of each step
+#define DEBUG 1 // Set to 1 to see the results of each step; 0 to deactivate
 
 /**
  * @brief Number of bins
  *
  */
 const int NUM_BINS = 4;
+
+/**
+ * @brief Generates a vector with random integers.
+ *
+ * @param size number of elements of the vector
+ * @param max maximum integer value allowed
+ * @return std::vector<int> containing the random integers
+ */
+std::vector<int> random_vector(int size, int max)
+{
+
+    // Prepare seed and random distribution
+    std::mt19937 gen(std::random_device{}());
+    std::exponential_distribution<> dist(0.05);
+
+    std::vector<int> v(size);
+    for (int &i : v)
+    {
+        i = std::min(max, int(dist(gen)));
+    }
+
+    return v;
+}
 
 /**
  * @brief Classifies the values of a numeric array into a cumulative histogram.
@@ -36,24 +60,11 @@ const int NUM_BINS = 4;
  *              that fall in that bin plus the sum of all previous bins.
  *
  * @param values array of integers with the values to be classified
+ * @param bin_span integer with the range of a bin
  */
-void parallel_solution(std::vector<int> &values)
+void parallel_solution(std::vector<int> &values, int bin_span)
 {
     const int N = values.size();
-
-    // Sort vector just in case
-    std::sort(values.begin(), values.end());
-
-    // Get the biggest element and compute the bin size from it
-    const int MAX_VALUE = values[N - 1];
-    const int BIN_SPAN = std::ceil(MAX_VALUE / NUM_BINS);
-
-    // Distribute the bins evenly
-    auto bin_range_values = std::vector<int>(NUM_BINS);
-    for (int i = 0; i < NUM_BINS; i++)
-    {
-        bin_range_values[i] = MAX_VALUE - (NUM_BINS - 1 - i) * BIN_SPAN;
-    }
 
     // Map each value to its corresponding bin
     std::vector<std::array<int, NUM_BINS>> mapped_values(N);
@@ -64,7 +75,7 @@ void parallel_solution(std::vector<int> &values)
             for (int i = r.begin(); i < r.end(); i++)
             {
                 int val = values[i] > 0 ? values[i] - 1 : values[i]; // 0 belongs in the first bin
-                int idx = val / BIN_SPAN;
+                int idx = std::min(val / bin_span, NUM_BINS - 1);
                 std::array<int, NUM_BINS> arr{};
                 arr[idx]++;
                 mapped_values[i] = arr;
@@ -172,31 +183,18 @@ void parallel_solution(std::vector<int> &values)
  *
  * @see parallel_solution
  * @param values array of integers with the values to be classified
+ * @param bin_span integer with the range of a bin
  */
-void sequential_solution(std::vector<int> values)
+void sequential_solution(std::vector<int> values, int bin_span)
 {
     const int N = values.size();
-
-    // Sort vector just in case
-    std::sort(values.begin(), values.end());
-
-    // Get the biggest element and compute the bin size from it
-    const int MAX_VALUE = values[N - 1];
-    const int BIN_SPAN = std::ceil(MAX_VALUE / NUM_BINS);
-
-    // Distribute the bins evenly
-    auto bin_range_values = std::vector<int>(NUM_BINS);
-    for (int i = 0; i < NUM_BINS; i++)
-    {
-        bin_range_values[i] = MAX_VALUE - (NUM_BINS - 1 - i) * BIN_SPAN;
-    }
 
     // Map each value to its corresponding bin
     std::vector<std::array<int, NUM_BINS>> mapped_values(N);
     for (int i = 0; i < N; i++)
     {
         int val = values[i] > 0 ? values[i] - 1 : values[i];
-        int idx = val / BIN_SPAN;
+        int idx = std::min(val / bin_span, NUM_BINS - 1);
         std::array<int, NUM_BINS> arr{};
         arr[idx]++;
         mapped_values[i] = arr;
@@ -276,16 +274,57 @@ void sequential_solution(std::vector<int> values)
  */
 int main()
 {
-    std::vector<int> values = {0, 7, 8, 10, 24, 48, 73, 120}; // Assuming non-negative values
+
+    const int N = 10;
+    const int MAX_VALUE = 120;
+    std::vector<int> values = random_vector(N, MAX_VALUE);
+
+    // Sort vector just in case
+    std::sort(values.begin(), values.end());
+
+#if DEBUG
+    std::cout << std::endl
+              << "Vector: [";
+    for (int i = 0; i < values.size(); i++)
+    {
+        std::cout << values[i];
+
+        if (i < values.size() - 1)
+        {
+            std::cout << ", ";
+        }
+    }
+    std::cout << "]" << std::endl
+              << std::endl;
+#endif
+
+    // Get the biggest element and compute the bin size from it
+    const int BIN_SPAN = std::ceil(MAX_VALUE / NUM_BINS);
 
     std::cout << std::endl
-              << "NUMBER OF BINS: " << NUM_BINS << std::endl;
+              << "NUMBER OF BINS: " << NUM_BINS << std::endl
+              << std::endl;
+
+    // Distribute the bins evenly
+    auto bin_range_values = std::vector<int>(NUM_BINS);
+    for (int i = 0; i < NUM_BINS; i++)
+    {
+        bin_range_values[i] = MAX_VALUE - (NUM_BINS - 1 - i) * BIN_SPAN;
+
+        int previous = 0;
+        if (i > 0)
+        {
+            previous = bin_range_values[i - 1] + 1;
+        }
+        std::cout << "BIN " << i + 1 << ": " << previous << " - " << bin_range_values[i] << std::endl
+                  << std::endl;
+    }
 
     std::cout << std::endl
               << "=== PARALLEL SOLUTION =======================================" << std::endl
               << std::endl;
     oneapi::tbb::tick_count t0 = oneapi::tbb::tick_count::now();
-    parallel_solution(values);
+    parallel_solution(values, BIN_SPAN);
     std::cout << "\nTime: " << (oneapi::tbb::tick_count::now() - t0).seconds() << "seconds" << std::endl
               << std::endl;
     std::cout << "=============================================================" << std::endl
@@ -295,7 +334,7 @@ int main()
               << "=== SEQUENTIAL SOLUTION =====================================" << std::endl
               << std::endl;
     oneapi::tbb::tick_count t1 = oneapi::tbb::tick_count::now();
-    sequential_solution(values);
+    sequential_solution(values, BIN_SPAN);
     std::cout << "\nTime: " << (oneapi::tbb::tick_count::now() - t1).seconds() << "seconds" << std::endl
               << std::endl;
     std::cout << "=============================================================" << std::endl
