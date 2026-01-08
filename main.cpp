@@ -28,7 +28,7 @@ const int NUM_BINS = 4;
 std::vector<int> random_vector(int size, int max)
 {
 
-    // Prepare seed and random distribution
+    // Prepare generator and random distribution
     std::mt19937 gen(std::random_device{}());
     std::exponential_distribution<> dist(0.05);
 
